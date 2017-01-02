@@ -1,0 +1,4 @@
+"0","frequency %>%"
+"0","        group_by(book) %>%"
+"0","        summarize(correlation = cor(book_words, all_words),"
+"0","                  p_value = cor.test(book_words, all_words)$p.value)"
