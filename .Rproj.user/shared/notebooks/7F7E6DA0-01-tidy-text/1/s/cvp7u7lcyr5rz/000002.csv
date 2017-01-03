@@ -1,4 +1,0 @@
-"0","library(tidyverse)      # data manipulation & plotting"
-"0","library(stringr)        # text cleaning and regular expressions"
-"0","library(tidytext)       # provides additional text mining functions"
-"0","library(harrypotter)    # provides the first seven novels of the Harry Potter series"

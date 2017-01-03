@@ -1,2 +1,0 @@
-"0","series %>%"
-"0","        count(word, sort = TRUE)"
