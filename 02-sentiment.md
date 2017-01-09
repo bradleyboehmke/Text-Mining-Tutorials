@@ -367,7 +367,7 @@ book_sent
 ## # ... with 1,391 more rows
 ```
 
-We can visualize this with a heatmap that shows the most positive and negative sentiments as we progress through each chapter
+We can visualize this with a heatmap that shows the most positive and negative sentiments as we progress through each chapter:
 
 
 ```r
