@@ -43,13 +43,13 @@ library(harrypotter)    # provides the first seven novels of the Harry Potter se
 
 The seven novels we are working with, and are provided by the `harrypotter` package, include:
 
-- `philosophers_stone`: Harry Potter and the Philosophers Stone, published in 1997
-- `chamber_of_secrets`: Harry Potter and the Chamber of Secrets, published in 1998
-- `prisoner_of_azkaban`: Harry Potter and the Prisoner of Azkaban, published in 1999
-- `goblet_of_fire`: Harry Potter and the Goblet of Fire, published in 2000
-- `order_of_the_phoenix`: Harry Potter and the Order of the Phoenix, published in 2003
-- `half_blood_prince`: Harry Potter and the Half-Blood Prince, published in 2005
-- `deathly_hallows`: Harry Potter and the Deathly Hallows, published in 2007
+- `philosophers_stone`: Harry Potter and the Philosophers Stone (1997)
+- `chamber_of_secrets`: Harry Potter and the Chamber of Secrets (1998)
+- `prisoner_of_azkaban`: Harry Potter and the Prisoner of Azkaban (1999)
+- `goblet_of_fire`: Harry Potter and the Goblet of Fire (2000)
+- `order_of_the_phoenix`: Harry Potter and the Order of the Phoenix (2003)
+- `half_blood_prince`: Harry Potter and the Half-Blood Prince (2005)
+- `deathly_hallows`: Harry Potter and the Deathly Hallows (2007)
 
 Each text is in a character vector with each element representing a single chapter.  For instance, the following illustrates the raw text of the first two chapters of the `philosophers_stone`:
 
@@ -176,7 +176,7 @@ book_words %>%
 
 ## Zipf's Law {#zip}
 
-Zipf's law states that within a group or corpus of documents, the frequency of any word is inversely proportional to its rank in the frequency table. Thus the most frequent word will occur approximately twice as often as the second most frequent word, three times as often as the third most frequent word, etc.
+Zipf's law states that within a group or corpus of documents, the frequency of any word is inversely proportional to its rank in a frequency table. Thus the most frequent word will occur approximately twice as often as the second most frequent word, three times as often as the third most frequent word, etc.  Zipf's law is most easily observed by plotting the data on a log-log graph, with the axes being log(rank order) and log(term frequency).
 
 
 ```r
@@ -195,6 +195,10 @@ ggplot(freq_by_rank, aes(rank, `term freq`, color = book)) +
 <img src="03-tf_idf_files/figure-html/unnamed-chunk-7-1.png" style="display: block; margin: auto;" />
 
 
+Our plot illustrates that the distribution is similar across the seven books. Furthermore, we can compare the distribution to a simple regression line.  We see that the tails of the distribution deviate suggesting our distribution doesn't follow Zipf's law perfectly; however, it is close enough to generally state that the law approximately holds within our corpus of text.
+
+
+
 ```r
 lower_rank <- freq_by_rank %>%
         filter(rank < 500)
@@ -211,7 +215,7 @@ lm(log10(`term freq`) ~ log10(rank), data = lower_rank)
 freq_by_rank %>% 
         ggplot(aes(rank, `term freq`, color = book)) +
         geom_abline(intercept = -0.9414, slope = -0.9694, color = "gray50", linetype = 2) +
-        geom_line(size = 1.2, alpha = 0.8) + 
+        geom_line(size = 1.2, alpha = 0.8) +
         scale_x_log10() +
         scale_y_log10()
 ```
