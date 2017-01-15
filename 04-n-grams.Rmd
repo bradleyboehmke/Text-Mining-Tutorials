@@ -11,7 +11,9 @@ So far we've analyzed the Harry Potter series by understanding the frequency and
 This tutorial builds on the [tidy text](tidy_text), [sentiment analysis](sentiment_analysis), and [term vs. document frequency](tf-idf_analysis) tutorials so if you have not read through those tutorials I suggest you start there before proceeding.  In this tutorial I cover the following: 
 
 1. [Replication requirements](#replication): What you’ll need to reproduce the analysis in this tutorial
-2. [*n*-gram analysis](#ngram): Tokenizing and analyzing consecutive sequences of words (aka *n*-grams)
+2. [*n*-gram basics](#ngram): Tokenizing consecutive sequences of words (aka *n*-grams) and assessing *n*-gram frequency
+3. [Analyzing *n*-grams](#analyze): Analyzing the tf-idf and sentiment of *n*-grams
+4. [Visualizing *n*-gram networks](#visualize): Visualizing the network of relationships among *n*-grams
 3. [Word correlation](#corr): Assessing the correlation of words within and across documents
 
 
@@ -150,6 +152,107 @@ series %>%
         coord_flip()
 ```
 
+## Analyzing n-grams {#analyze}
+
+We can also follow a similar process as performed in the [term vs. document frequency](tf-idf_analysis) tutorial to identify the tf-idf of *n*-grams (or bi-grams in our ongoing example).
+
+```{r, collapse=TRUE, warning=FALSE, message=FALSE}
+(bigram_tf_idf <- series %>%
+        count(book, bigram, sort = TRUE) %>%
+        bind_tf_idf(bigram, book, n) %>%
+        arrange(desc(tf_idf))
+)
+```
+
+And we can visualize the bigrams with the highest tf_idf for each book:
+
+```{r, warning=FALSE, message=FALSE, fig.align='center', fig.width=10, fig.height=12}
+bigram_tf_idf %>%
+        group_by(book) %>%
+        top_n(15, wt = tf_idf) %>%
+        ungroup() %>%
+        mutate(book = factor(book) %>% forcats::fct_rev()) %>%
+        ggplot(aes(drlib::reorder_within(bigram, tf_idf, book), tf_idf, fill = book)) +
+        geom_bar(stat = "identity", alpha = .8, show.legend = FALSE) +
+        labs(title = "Highest tf-idf bi-grams in the Harry Potter series",
+             x = NULL, y = "tf-idf") +
+        drlib::scale_x_reordered() +
+        facet_wrap(~book, ncol = 2, scales = "free") +
+        coord_flip()
+```
+
+The sentiment analysis approch used in the [sentiment analysis](sentiment_analysis) tutorial simply counted the appearance of positive or negative words, according to a specified lexicon (i.e. AFINN, bing, nrc). Unfortunately, this approach scores the sentiments of words merely on their presence rather than on context. For example, the words "happy" and "like" will be counted as positive, even in a sentence like "I'm not happy and I don’t like it!"   
+
+By performing sentiment analysis on our bi-gram data, we can examine how often sentiment-associated words are preceded by "not" or other negating words. 
+
+```{r, collapse=TRUE, message=FALSE, warning=FALSE}
+series %>%
+        separate(bigram, c("word1", "word2"), sep = " ") %>%
+        filter(word1 == "not") %>%
+        count(book, word1, word2, sort = TRUE)
+```
+
+
+We could use this to ignore or even reverse their contribution to the sentiment score.  Here we'll use the AFINN lexicon for the sentiment analysis, which gives a numeric sentiment score for each word. We can assess the most frequent words that have a sentiment score and were preceded by "not".
+
+```{r, collapse=TRUE, message=FALSE, warning=FALSE}
+AFINN <- get_sentiments("afinn")
+
+(nots <- series %>%
+        separate(bigram, c("word1", "word2"), sep = " ") %>%
+        filter(word1 == "not") %>%
+        inner_join(AFINN, by = c(word2 = "word")) %>%
+        count(word2, score, sort = TRUE) 
+)
+```
+
+We can use this information to see the total impact these cases had on misspecifying sentiment.  For example, above we saw that the top two words preceded by "not" was "want" and "help".  The sentiment score for "want" is +1; however, "want" was preceded by "not" 81 times which means the sentiment could easily have been overstated by $$81 \times 1 = 81$$ points. "help" on the otherhand has a sentiment score of +2 but was preceded by "not" 45 times which means the sentiment could have been overstated by $$45 \times 2 = 90$$ points for these instances. 
+
+```{r, warning=FALSE, message=FALSE, fig.align='center', fig.width=8, fig.height=5}
+nots %>%
+        mutate(contribution = n * score) %>%
+        arrange(desc(abs(contribution))) %>%
+        head(20) %>%
+        ggplot(aes(reorder(word2, contribution), n * score, fill = n * score > 0)) +
+        geom_bar(stat = "identity", show.legend = FALSE) +
+        xlab("Words preceded by 'not'") +
+        ylab("Sentiment score * # of occurrances") +
+        coord_flip()
+```
+
+The bi-grams "not help", "not want", "not like" were the largest causes of misidentification, making the text seem much more positive than it is. We also see bi-grams such as "not bad", "not dead", and "not stupid" as the bottom of our chart suggesting these bi-grams made the text appear more negative than it is.
+
+We could expand this example and use a full list of words that signal negation (i.e. "not", "no", "never", "without"). This would allow us to find a larger pool of words that are preceded by negation and identify their impact on sentiment analysis.
+
+```{r, collapse=TRUE, message=FALSE, warning=FALSE}
+negation_words <- c("not", "no", "never", "without")
+
+(negated <- series %>%
+                separate(bigram, c("word1", "word2"), sep = " ") %>%
+                filter(word1 %in% negation_words) %>%
+                inner_join(AFINN, by = c(word2 = "word")) %>%
+                count(word1, word2, score, sort = TRUE) %>%
+                ungroup()
+)
+```
+
+
+```{r, warning=FALSE, message=FALSE, fig.align='center', fig.width=10, fig.height=10}
+negated %>%
+        mutate(contribution = n * score) %>%
+        arrange(desc(abs(contribution))) %>%
+        group_by(word1) %>%
+        top_n(10, abs(contribution)) %>%
+        ggplot(aes(drlib::reorder_within(word2, contribution, word1), contribution, fill = contribution > 0)) +
+        geom_bar(stat = "identity", show.legend = FALSE) +
+        xlab("Words preceded by 'not'") +
+        ylab("Sentiment score * # of occurrances") +
+        drlib::scale_x_reordered() +
+        facet_wrap(~ word1, scales = "free") +
+        coord_flip()
+```
+
+## Visualizing n-gram Networks {#visualize}
 
 ## Word Correlation {#corr}
 
