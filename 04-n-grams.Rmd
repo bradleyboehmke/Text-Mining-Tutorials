@@ -254,10 +254,57 @@ negated %>%
 
 ## Visualizing n-gram Networks {#visualize}
 
+So far we've been visualizing the top *n*-grams; however, this doesn't give us much insight into multiple relationships that exist among words.  To get a better understanding of the numerous relationships that can exist we can use a network graph.  First, we'll set up the network structure using the `igraph` package.  Here we'll only focus on context words and look at bi-grams that have atleast 20 occurrences across the entire Harry Potter series.
+
+```{r, collapse=TRUE, message=FALSE, warning=FALSE}
+library(igraph)
+
+(bigram_graph <- series %>%
+        separate(bigram, c("word1", "word2"), sep = " ") %>%
+        filter(!word1 %in% stop_words$word,
+               !word2 %in% stop_words$word) %>%
+        count(word1, word2, sort = TRUE) %>%
+        unite("bigram", c(word1, word2), sep = " ") %>%
+        filter(n > 20) %>%
+        graph_from_data_frame()
+)
+```
+
+
+Now to visualize our network we'll leverage the `ggraph` package which converts an igraph object to a ggplot-like graphich.
+
+```{r, message=FALSE, warning=FALSE, fig.align='center', fig.width=10, fig.height=10}
+library(ggraph)
+set.seed(123)
+
+a <- grid::arrow(type = "closed", length = unit(.15, "inches"))
+
+ggraph(bigram_graph, layout = "fr") +
+        geom_edge_link() +
+        geom_node_point(color = "lightblue", size = 5) +
+        geom_node_text(aes(label = name), vjust = 1, hjust = 1) +
+        theme_void()
+```
+
+
+
 ## Word Correlation {#corr}
 
+In addition to understanding what words and sentiments occur within sections, chapters, and books, we may also want to understand which pairs of words co-appear within sections, chapters, and books.  Here we'll focus on the `philosophers_stone` book.
+
+```{r, collapse=TRUE, message=FALSE, warning=FALSE}
+ps_words <- tibble(chapter = seq_along(philosophers_stone),
+                  text = philosophers_stone) %>%
+        unnest_tokens(word, text) %>%
+        filter(!word %in% stop_words$word)
+```
+
+We can leverage the `widyr` package to count common pairs of words co-appearing within the same chapter:
+
+```{r, collapse=TRUE, message=FALSE, warning=FALSE}
+library(widyr)
 
 
-
+```
 
 
