@@ -18,7 +18,7 @@ The below image illustrates how an analysis might switch between tidy and non-ti
 
 ## tl'dr
 
-This tutorial will focus on the process of tidying document-term matrices, as well as casting a tidy data frame into a __*sparse matrix*__. We’ll also expore how to tidy Corpus objects, which combine raw text with document metadata, into text data frames, leading to a case study of ingesting and analyzing financial articles.
+This tutorial will focus on the process of tidying document-term matrices, as well as casting a tidy data frame into a __*sparse matrix*__.[^tidy] We’ll also expore how to tidy Corpus objects, which combine raw text with document metadata, into text data frames, leading to a case study of ingesting and analyzing financial articles.
 
 1. [Replication requirements](#rep): What you’ll need to reproduce the analysis in this tutorial
 2. [Tidying a document-term matrix](#tidydtm): Tidying the most common text mining data structure
@@ -80,7 +80,7 @@ philosophers_stone[1:2]
 ```
 
 
-## Tidying a Document-term Matrix {##tidydtm}
+## Tidying DTM & DFMs {##tidydtm}
 
 One of the most common structures that text mining packages work with is the [document-term matrix](https://en.wikipedia.org/wiki/Document-term_matrix) (or DTM). This is a matrix where:
 
@@ -97,8 +97,6 @@ DTM objects cannot be used directly with tidy tools, just as tidy data frames ca
 
 As shown in the introductory figure above, a DTM is typically comparable to a tidy data frame after a `count` or a `group_by`/`summarize` that contains counts or another statistic for each combination of a term and document.
 
-### Tidying DocumentTermMatrix Objects
-
 Perhaps the most widely used implementation of DTMs in R is the `DocumentTermMatrix` class in the `tm` package. Many available text mining datasets are provided in this format.  Here, we convert the `philosophers_stone` data into a `DocumentTermMatrix`:
 
 ```{r}
@@ -113,7 +111,7 @@ ps_dtm <- VectorSource(philosophers_stone) %>%
 inspect(ps_dtm)
 ```
 
-We see that this dataset contains documents (chapters 1-17 of `philosophers_stone`) and terms (distinct words). Notice that this DTM is 86% sparse (86% of document-word pairs are zero). We could access the terms in the document with the `Terms()` function.
+We see that this dataset contains documents (chapters 1-17 of `philosophers_stone`) along the rows and terms (distinct words) along the columns. Notice that this DTM is 86% sparse (86% of document-word pairs are zero). We could access the terms in the document with the `Terms()` function.
 
 ```{r}
 terms <- Terms(ps_dtm)
@@ -147,3 +145,80 @@ ps_tidy %>%
 ```
 
 
+
+Another common text mining approach is to use *Document-Feature-Matrix* (`dfm`) objects.  For example, we can convert the `philosophers_stone` text data into a `dfm` using the `quanteda` package.
+
+```{r}
+ps_dfm <- quanteda::dfm(philosophers_stone, verbose = FALSE)
+
+ps_dfm
+```
+
+We can also use the `tidy` function on this type of object to convert it into a tidied data frame:
+
+```{r}
+ps_tidy <- tidy(ps_dfm)
+ps_tidy
+```
+
+
+## Casting Tidy Text Data into a Matrix
+
+As we saw above, the `tidy` function can be used to tidy common text mining objects.  However, there are many reasons that these popular text mining packages use these non-tidy data objects.  Most importantly, it allows for efficient algorithmic procedures.  Thus, it is important to be able to switch back and forth between tidy and non-tidy text mining objects.  
+
+For example, an analyst may tidy up their text data and perform some common text mining procedures with the `tidytext` package as we've seen in the previous text mining tutorials ([here](tidy_text), [here](sentiment_analysis), [here](tf-idf_analysis), and [here](word_relationships)).  The analyst may then want to convert to a DTM or DFM to perform a bootstrap to resample across the corpus (or some other analytic technique) and then convert back to a tidy object.
+
+We can use `cast`, which provides three variations of converting a tidy text object to a matrix: `cast_sparse()` (converting to a sparse matrix from the Matrix package), `cast_dtm()` (converting to a DocumentTermMatrix object from tm), and `cast_dfm()` (converting to a dfm object from quanteda.
+
+```{r}
+# cast tidy data to a DFM
+ps_tidy %>%
+  cast_dfm(term, document, count)
+
+# cast tidy data to a DTM
+ps_tidy %>%
+  cast_dtm(term, document, count)
+
+# cast tidy data to a sparse matrix
+ps_tidy %>%
+  cast_sparse(term, document, count) %>%
+  dim
+```
+
+This casting process allows for reading, filtering, and processing to be done using dplyr and other tidy tools, after which the data can be converted into a document-term matrix for machine learning applications.
+
+
+## Tidying Corpus Objects with Metadata
+
+Many text mining packages provide a data structure that is designed to store document collections before tokenization, called a “corpus”. One common example is `Corpus` objects from the `tm` package. These store text alongside metadata, which may include an ID, date/time, title, or language for each document.
+
+For example, 
+
+```{r}
+# turning philosophers_stone into a corpus
+ps_corpus <- VectorSource(philosophers_stone) %>%
+  VCorpus()
+
+# viewing corpus
+ps_corpus
+```
+
+A corpus object is structured like a list, with each item containing both text and metadata. This is a flexible storage method for documents, but doesn’t lend itself to processing with tidy tools.
+
+```{r}
+# viewing document 1 in the corpus
+ps_corpus[[1]]
+```
+
+We can thus use the `tidy()` method to construct a table with one row per document, including the metadata (such as ID and date-time stamps) as columns alongside the text. The example below is not very interesting because the `philosophers_stone` data does not have any metadata other than `id` (chapter) and `datetimestamp` (if no date-time stamp is available then the current date-time will be filled in).
+
+```{r}
+ps_tidy <- tidy(ps_corpus)
+ps_tidy
+```
+
+
+## Case Study
+
+
+[^tidy]: This tutorial is largely borrowed from Chapter 5 of the wonderful [Text Mining with R](http://tidytextmining.com) book.
