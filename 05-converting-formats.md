@@ -11,10 +11,12 @@ The below image illustrates how an analysis might switch between tidy and non-ti
 
 ## tl'dr
 
-This tutorial will focus on the process of tidying document-term matrices, as well as casting a tidy data frame into a __*sparse matrix*__. We’ll also expore how to tidy Corpus objects, which combine raw text with document metadata, into text data frames, leading to a case study of ingesting and analyzing financial articles.
+This tutorial will focus on the process of tidying document-term matrices, as well as casting a tidy data frame into a __*sparse matrix*__.[^tidy] We’ll also expore how to tidy Corpus objects, which combine raw text with document metadata, into text data frames, leading to a case study of ingesting and analyzing financial articles.
 
-1. [Replication requirements](#rep): What you’ll need to reproduce the analysis in this tutorial
-2. [Tidying a document-term matrix](#tidydtm): Tidying the most common text mining data structure
+1. [Replication requirements](#rep): What you’ll need to reproduce the analysis in this tutorial.
+2. [Tidying a document-term matrix](#tidydtm): Tidying the most common text mining data structure.
+3. [Casting tidy text data into a matrix](#casting): Be able to go from tidy to non-tidy.
+4. [Tidying corpus objects with metadata](#meta): Tidying corpus data that includes metadata.
 
 
 ## Replication Requirements {#rep}
@@ -76,7 +78,7 @@ philosophers_stone[1:2]
 ```
 
 
-## Tidying a Document-term Matrix {##tidydtm}
+## Tidying DTM & DFMs {#tidydtm}
 
 One of the most common structures that text mining packages work with is the [document-term matrix](https://en.wikipedia.org/wiki/Document-term_matrix) (or DTM). This is a matrix where:
 
@@ -92,8 +94,6 @@ DTM objects cannot be used directly with tidy tools, just as tidy data frames ca
 - __`cast()`__ turns a tidy one-term-per-row data frame into a matrix. `tidytext` provides three variations of this function, each converting to a different type of matrix: `cast_sparse()` (converting to a sparse matrix from the Matrix package), `cast_dtm()` (converting to a DocumentTermMatrix object from tm), and `cast_dfm()` (converting to a dfm object from quanteda).
 
 As shown in the introductory figure above, a DTM is typically comparable to a tidy data frame after a `count` or a `group_by`/`summarize` that contains counts or another statistic for each combination of a term and document.
-
-### Tidying DocumentTermMatrix Objects
 
 Perhaps the most widely used implementation of DTMs in R is the `DocumentTermMatrix` class in the `tm` package. Many available text mining datasets are provided in this format.  Here, we convert the `philosophers_stone` data into a `DocumentTermMatrix`:
 
@@ -128,7 +128,7 @@ inspect(ps_dtm)
 ##   9    17    11  11      2    45       13    9   8  31   44
 ```
 
-We see that this dataset contains documents (chapters 1-17 of `philosophers_stone`) and terms (distinct words). Notice that this DTM is 86% sparse (86% of document-word pairs are zero). We could access the terms in the document with the `Terms()` function.
+We see that this dataset contains documents (chapters 1-17 of `philosophers_stone`) along the rows and terms (distinct words) along the columns. Notice that this DTM is 86% sparse (86% of document-word pairs are zero). We could access the terms in the document with the `Terms()` function.
 
 
 ```r
@@ -165,6 +165,9 @@ Notice that we now have a tidy three-column data frame, with variables *document
 
 
 ```r
+# note that I use drlib functions for ordering bars within facets
+# you can download this package with devtools::install_github("dgrtwo/drlib") 
+
 ps_tidy %>%
   group_by(document) %>%
   top_n(5) %>%
@@ -172,11 +175,193 @@ ps_tidy %>%
   mutate(document = factor(as.numeric(document), levels = 1:17)) %>%
   ggplot(aes(drlib::reorder_within(term, count, document), count)) +
   geom_bar(stat = "identity") +
+  xlab("Top 5 Common Words") +
   drlib::scale_x_reordered() +
   coord_flip() +
   facet_wrap(~ document, scales = "free")
 ```
 
-<img src="05-converting-formats_files/figure-html/unnamed-chunk-7-1.png" style="display: block; margin: auto;" />
+<img src="05-converting-formats_files/figure-html/convert_freq-1.png" style="display: block; margin: auto;" />
 
 
+
+Another common text mining approach is to use *Document-Feature-Matrix* (`dfm`) objects.  For example, we can convert the `philosophers_stone` text data into a `dfm` using the `quanteda` package.
+
+
+```r
+ps_dfm <- quanteda::dfm(philosophers_stone, verbose = FALSE)
+
+ps_dfm
+## Document-feature matrix of: 17 documents, 5,992 features (79.7% sparse).
+```
+
+We can also use the `tidy` function on this type of object to convert it into a tidied data frame:
+
+
+```r
+ps_tidy <- tidy(ps_dfm)
+ps_tidy
+## # A tibble: 20,688 × 3
+##    document  term count
+##       <chr> <chr> <dbl>
+## 1     text1   the   204
+## 2     text2   the   181
+## 3     text3   the   222
+## 4     text4   the   127
+## 5     text5   the   274
+## 6     text6   the   282
+## 7     text7   the   252
+## 8     text8   the   147
+## 9     text9   the   207
+## 10   text10   the   256
+## # ... with 20,678 more rows
+```
+
+
+## Casting Tidy Text Data into a Matrix {#casting}
+
+As we saw above, the `tidy` function can be used to tidy common text mining objects.  However, there are many reasons that these popular text mining packages use these non-tidy data objects.  Most importantly, it allows for efficient algorithmic procedures.  Thus, it is important to be able to switch back and forth between tidy and non-tidy text mining objects.  
+
+For example, an analyst may tidy up their text data and perform some common text mining procedures with the `tidytext` package as we've seen in the previous text mining tutorials ([here](tidy_text), [here](sentiment_analysis), [here](tf-idf_analysis), and [here](word_relationships)).  The analyst may then want to convert to a DTM or DFM to perform a bootstrap to resample across the corpus (or some other analytic technique) and then convert back to a tidy object.
+
+We can use `cast`, which provides three variations of converting a tidy text object to a matrix: `cast_sparse()` (converting to a sparse matrix from the Matrix package), `cast_dtm()` (converting to a DocumentTermMatrix object from tm), and `cast_dfm()` (converting to a dfm object from quanteda.
+
+
+```r
+# cast tidy data to a DFM
+ps_tidy %>%
+  cast_dfm(term, document, count)
+## Document-feature matrix of: 5,992 documents, 17 features (79.7% sparse).
+
+# cast tidy data to a DTM
+ps_tidy %>%
+  cast_dtm(term, document, count)
+## <<DocumentTermMatrix (documents: 5992, terms: 17)>>
+## Non-/sparse entries: 20688/81176
+## Sparsity           : 80%
+## Maximal term length: 6
+## Weighting          : term frequency (tf)
+
+# cast tidy data to a sparse matrix
+ps_tidy %>%
+  cast_sparse(term, document, count) %>%
+  dim
+## [1] 5992   17
+```
+
+This casting process allows for reading, filtering, and processing to be done using dplyr and other tidy tools, after which the data can be converted into a document-term matrix for machine learning applications.
+
+
+## Tidying Corpus Objects with Metadata {#meta}
+
+Many text mining packages provide a data structure that is designed to store document collections before tokenization, called a “corpus”. One common example is `Corpus` objects from the `tm` package. These store text alongside metadata, which may include an ID, date/time, title, or language for each document.
+
+For example, 
+
+
+```r
+# turning philosophers_stone into a corpus
+ps_corpus <- VectorSource(philosophers_stone) %>%
+  VCorpus()
+
+# viewing corpus
+ps_corpus
+## <<VCorpus>>
+## Metadata:  corpus specific: 0, document level (indexed): 0
+## Content:  documents: 17
+```
+
+A corpus object is structured like a list, with each item containing both text and metadata. This is a flexible storage method for documents, but doesn’t lend itself to processing with tidy tools.
+
+
+```r
+# viewing document 1 in the corpus
+ps_corpus[[1]]
+## <<PlainTextDocument>>
+## Metadata:  7
+## Content:  chars: 25928
+```
+
+We can thus use the `tidy()` method to construct a table with one row per document, including the metadata (such as ID and date-time stamps) as columns alongside the text. The example below is not very interesting because the `philosophers_stone` data does not have any metadata other than `id` (chapter) and `datetimestamp` (if no date-time stamp is available then the current date-time will be filled in).
+
+
+```r
+ps_tidy <- tidy(ps_corpus)
+ps_tidy
+## # A tibble: 17 × 8
+##    author       datetimestamp description heading    id language origin
+##     <lgl>              <dttm>       <lgl>   <lgl> <chr>    <chr>  <lgl>
+## 1      NA 2017-05-16 08:07:49          NA      NA     1       en     NA
+## 2      NA 2017-05-16 08:07:49          NA      NA     2       en     NA
+## 3      NA 2017-05-16 08:07:49          NA      NA     3       en     NA
+## 4      NA 2017-05-16 08:07:49          NA      NA     4       en     NA
+## 5      NA 2017-05-16 08:07:49          NA      NA     5       en     NA
+## 6      NA 2017-05-16 08:07:49          NA      NA     6       en     NA
+## 7      NA 2017-05-16 08:07:49          NA      NA     7       en     NA
+## 8      NA 2017-05-16 08:07:49          NA      NA     8       en     NA
+## 9      NA 2017-05-16 08:07:49          NA      NA     9       en     NA
+## 10     NA 2017-05-16 08:07:49          NA      NA    10       en     NA
+## 11     NA 2017-05-16 08:07:49          NA      NA    11       en     NA
+## 12     NA 2017-05-16 08:07:49          NA      NA    12       en     NA
+## 13     NA 2017-05-16 08:07:49          NA      NA    13       en     NA
+## 14     NA 2017-05-16 08:07:49          NA      NA    14       en     NA
+## 15     NA 2017-05-16 08:07:49          NA      NA    15       en     NA
+## 16     NA 2017-05-16 08:07:49          NA      NA    16       en     NA
+## 17     NA 2017-05-16 08:07:49          NA      NA    17       en     NA
+## # ... with 1 more variables: text <chr>
+```
+
+
+
+To give a better example, let's look at the built-in data set `acq` provided by the `tm` package.
+
+
+```r
+data("acq")
+acq
+## <<VCorpus>>
+## Metadata:  corpus specific: 0, document level (indexed): 0
+## Content:  documents: 50
+```
+
+`acq` contains 50 articles from the news service Reuters.  If we look at the first document we see that it includes metadata. Note that a corpus is structured like a list so we can index it just like we index a list.
+
+
+```r
+acq[[1]]
+## <<PlainTextDocument>>
+## Metadata:  15
+## Content:  chars: 1287
+```
+
+If we use `tidy` on this data set you now notice that the metadata is more informative and provides additional variables to analyze our data.  We could now look at most commons word by article, author, date, analyze the titles (*heading*), or a mariad of other analyses.  Bottom line, the metadata can be very informative in our analysis and using `tidy` allows us to include this information as variables.
+
+
+```r
+(tidy_acq <- tidy(acq))
+## # A tibble: 50 × 16
+##                       author       datetimestamp description
+##                        <chr>              <dttm>       <chr>
+## 1                       <NA> 1987-02-26 10:18:06            
+## 2                       <NA> 1987-02-26 10:19:15            
+## 3                       <NA> 1987-02-26 10:49:56            
+## 4  By Cal Mankowski, Reuters 1987-02-26 10:51:17            
+## 5                       <NA> 1987-02-26 11:08:33            
+## 6                       <NA> 1987-02-26 11:32:37            
+## 7      By Patti Domm, Reuter 1987-02-26 11:43:13            
+## 8                       <NA> 1987-02-26 11:59:25            
+## 9                       <NA> 1987-02-26 12:01:28            
+## 10                      <NA> 1987-02-26 12:08:27            
+## # ... with 40 more rows, and 13 more variables: heading <chr>, id <chr>,
+## #   language <chr>, origin <chr>, topics <chr>, lewissplit <chr>,
+## #   cgisplit <chr>, oldid <chr>, places <list>, people <lgl>, orgs <lgl>,
+## #   exchanges <lgl>, text <chr>
+```
+
+
+## Summary
+
+Text analysis requires working with a variety of tools, many of which have inputs and outputs that aren’t in a tidy form. This tutorial shows how to convert between a tidy text data frame and sparse document-term matrices, as well as how to tidy a Corpus object containing document metadata. 
+
+
+[^tidy]: This tutorial is largely borrowed from Chapter 5 of the wonderful [Text Mining with R](http://tidytextmining.com) book.
